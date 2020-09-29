@@ -3,21 +3,15 @@
 import sys
 import ast
 from _ast import Name, Call
-from pprint import pprint
 
-
-def main():
-    file = sys.argv[1]
-    with open(file, "r") as source:
+def translate_file(path):
+    with open(path, "r") as source:
         tree = ast.parse(source.read())
 
     converter = Converter()
     converter.visit(tree)
 
-    cpp_name = file.strip(".py") + ".cpp"
-    with open(cpp_name, "w") as cpp_file:
-        print(converter.report(), file=cpp_file)
-
+    return converter.report()
 
 class Converter(ast.NodeVisitor):
     def __init__(self):
@@ -151,6 +145,14 @@ class Converter(ast.NodeVisitor):
     def visit_arguments(self, node):
         """ Handle definitions of function arguments. """
 
+    def __iadd__(self, value):
+        indent = "\t" * (self.indent * self.line_start)
+
+        self.line_start = False
+        self.code.append(f"{indent}{value}")
+
+        return self
+
     def report(self):
         string = []
         for include in self.includes:
@@ -161,15 +163,3 @@ class Converter(ast.NodeVisitor):
             string.append(item)
 
         return "".join(string)
-
-    def __iadd__(self, value):
-        indent = "\t" * (self.indent * self.line_start)
-
-        self.line_start = False
-        self.code.append(f"{indent}{value}")
-
-        return self
-
-
-if __name__ == "__main__":
-    main()

@@ -6,8 +6,11 @@ def main():
     b = 7
     c = rand()
 
+    d = 1337
+
     print(a)
     print(b)
     print(c)
+    print(d)
 
     return 0
