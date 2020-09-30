@@ -3,3 +3,7 @@
 *.o
 
 .vscode/
+cpp/
+obj/
+
+main
