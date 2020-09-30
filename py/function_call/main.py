@@ -6,7 +6,7 @@ def main():
     b = 7
     c = rand()
 
-    d = 1337
+    d = 1337.420
 
     print(a)
     print(b)
