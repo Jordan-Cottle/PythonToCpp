@@ -3,11 +3,15 @@
 import os
 import sys
 import ast
-from ast import Name, Call
+from ast import Name, Call, FunctionDef, Attribute
 
 from compiler import get_type, CompileError, OPERATORS
 
 from collections import defaultdict
+
+
+class FunctionTypeError(CompileError):
+    """ Functions must have their return types annotated. """
 
 
 def translate_file(path):
@@ -20,7 +24,7 @@ def translate_file(path):
 def get_return_annotation(function_source):
     header = function_source.split("\n")[0]
     if ") -> " not in header:
-        raise CompileError("Functions must have a return type specified!")
+        raise FunctionTypeError("Functions must have a return type specified!")
 
     type_ = header.split(") -> ")[-1].strip(":")
 
@@ -56,6 +60,7 @@ class Converter(ast.NodeVisitor):
         self.path = os.path.abspath(file_path)
         self.line_no = 0
 
+        self.current_class = ""
         self.code = []
         self.includes = set()
 
@@ -162,23 +167,82 @@ class Converter(ast.NodeVisitor):
         self.generic_visit(node)
         self.end_line()
 
+    def assign(self, value):
+
+        self += " = "
+        self.visit(value)
+
+        self.end_line()
+
     def visit_Assign(self, node):
         """ Handle assignment statements. """
 
         target = node.targets[0]
         value = node.value
-        print(f"Handling assign: {target.id} = {value}")
+        print(f"Handling assign: {target} = {value}")
 
-        if target.id not in self.delcared:
-            self += "auto "
-            self.delcared.add(target.id)
+        print(type(target))
+        # Parse Attribute/Name before assignment operator
+        if isinstance(target, Attribute):
+            self.visit(target)
+        else:
+            if target.id not in self.delcared:
+                self += "auto "
+                self.delcared.add(target.id)
+            self.visit_Name(target)
 
-        # Parse Name before assignment operator
-        self.visit_Name(target)
-        self += " = "
+        self.assign(value)
+
+    def visit_AnnAssign(self, node):
+        target = node.target
+        annotation = node.annotation
+        value = node.value
+
+        cpp_type = self.get_type(annotation.id)
+
+        self += f"{cpp_type} "
+
+        self.visit(target)
+
+        if value:
+            self.assign(value)
+        else:
+            self.end_line()
+
+    def visit_AugAssign(self, node):
+
+        target = node.target
+        op = node.op
+        value = node.value
+
+        self.visit(target)
+
+        operator = OPERATORS.get(type(op))
+        if not operator:
+            raise CompileError(f"Unrecognized operator {op}")
+
+        print(f"Handling augmented assign: {operator}")
+
+        self += f" {operator}= "
+
         self.visit(value)
-
         self.end_line()
+
+    def visit_Attribute(self, node):
+        value = node.value
+        attr = node.attr
+
+        if isinstance(value, Name):
+            name = value.id
+
+        print(f"Processing attribute: {name}.{attr}")
+
+        if name == "self":
+            self += "this->"
+        else:
+            self += f"{name}."
+
+        self += f"{attr}"
 
     def visit_Call(self, node):
         """ Handle function calls. """
@@ -225,7 +289,13 @@ class Converter(ast.NodeVisitor):
 
         function_definition = ast.get_source_segment(open(self.path).read(), node)
 
-        return_type = self.get_type(get_return_annotation(function_definition))
+        try:
+            return_type = self.get_type(get_return_annotation(function_definition))
+        except FunctionTypeError:
+            if node.name == self.current_class:
+                return_type = ""
+            else:
+                raise
 
         self += f"{return_type} {name} ("
 
@@ -246,14 +316,17 @@ class Converter(ast.NodeVisitor):
             return
 
         for i, arg in enumerate(args):
-            self.visit(arg)
-            if i + 1 < len(args):
+            skipped = self.visit_arg(arg)
+            if i + 1 < len(args) and not skipped:
                 self += ", "
 
     def visit_arg(self, node):
         """ Handle definitions of function arguments. """
         arg = node.arg
         print(f"Handling function arg: {arg}")
+
+        if arg == "self" and self.current_class:
+            return True
 
         annotation = node.annotation
         if annotation is None:
@@ -301,6 +374,32 @@ class Converter(ast.NodeVisitor):
             self.visit(value)
             if i + 1 < len(node.values):
                 self += f" {op} "
+
+    def visit_ClassDef(self, node):
+        name = node.name
+        bases = node.bases
+        body = node.body
+
+        self.current_class = name
+
+        extends = ", ".join(base.id for base in bases)
+        if extends:
+            extends = f": {extends}"
+
+        self.end_line(f"struct {name}{extends} {{")
+
+        with CompileFlag(self, "indent"):
+            for node in body:
+                print(node)
+
+                if isinstance(node, FunctionDef):
+                    if node.name == "__init__":
+                        node.name = name
+
+                self.visit(node)
+
+        self.end_line("};")
+        self.current_class = ""
 
     def __iadd__(self, value):
         indent = "\t" * (self.indent * self.line_start)
