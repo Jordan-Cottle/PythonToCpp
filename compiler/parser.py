@@ -1,13 +1,12 @@
 #! /usr/bin/env python3
 
+import ast
 import os
 import sys
-import ast
-from ast import Name, Call, FunctionDef, Attribute
-
-from compiler import get_type, CompileError, OPERATORS
-
+from ast import Attribute, Call, Constant, Expr, FunctionDef, Name
 from collections import defaultdict
+
+from compiler import CompileError, get_operator, get_type
 
 
 class FunctionTypeError(CompileError):
@@ -119,7 +118,13 @@ class Converter(ast.NodeVisitor):
         for arg in node.args:
             self += " << "
             print(f"Print conversion visiting: {arg}")
-            self.visit(arg)
+
+            if isinstance(arg, Name) or isinstance(arg, Constant):
+                self.visit(arg)
+            else:
+                self += "("
+                self.visit(arg)
+                self += ")"
 
         self += r' << "\n"'
 
@@ -217,9 +222,7 @@ class Converter(ast.NodeVisitor):
 
         self.visit(target)
 
-        operator = OPERATORS.get(type(op))
-        if not operator:
-            raise CompileError(f"Unrecognized operator {op}")
+        operator = get_operator(op)
 
         print(f"Handling augmented assign: {operator}")
 
@@ -344,10 +347,7 @@ class Converter(ast.NodeVisitor):
 
     def visit_BinOp(self, node):
         print(f"Handling binary operator: {node.op}")
-        op = OPERATORS.get(type(node.op))
-
-        if not op:
-            raise CompileError(f"{node.op} is an unsupported binary operator")
+        op = get_operator(node.op)
 
         self.visit(node.left)
         self += f" {op} "
@@ -355,10 +355,7 @@ class Converter(ast.NodeVisitor):
 
     def visit_UnaryOp(self, node):
         print(f"Handling unary operator: {node.op}")
-        op = OPERATORS.get(type(node.op))
-
-        if not op:
-            raise CompileError(f"{node.op} is an unsupported unary operator")
+        op = get_operator(node.op)
 
         self += op
         self.visit(node.operand)
@@ -374,6 +371,26 @@ class Converter(ast.NodeVisitor):
             self.visit(value)
             if i + 1 < len(node.values):
                 self += f" {op} "
+
+    def visit_Compare(self, node):
+        left = node.left
+
+        ops = node.ops
+
+        operands = node.comparators
+
+        last_operand = left
+        for op, operand in zip(ops, operands):
+            op = get_operator(op)
+
+            if last_operand != left:
+                self += " && "
+
+            self.visit(last_operand)
+            self += f" {op} "
+            self.visit(operand)
+
+            last_operand = operand
 
     def visit_ClassDef(self, node):
         name = node.name

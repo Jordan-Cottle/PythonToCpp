@@ -71,6 +71,10 @@ class UnknownTypeError(CompileError):
     """ Raised when a conversion from python type hint to cpp is unknown. """
 
 
+class UnknownOperatorError(CompileError):
+    """ Raised when a conversion from python operator to cpp is unknown. """
+
+
 def get_type(name):
     """Get the c++ type for name.
 
@@ -83,3 +87,13 @@ def get_type(name):
         raise UnknownTypeError(f"No conversion for {name} is known")
 
     return cpp_type, INCLUDES.get(cpp_type)
+
+
+def get_operator(op_node):
+
+    try:
+        return OPERATORS[type(op_node)]
+    except KeyError:
+        raise UnknownOperatorError(
+            f"{op_node.op} is an unsupported binary operator"
+        ) from None
