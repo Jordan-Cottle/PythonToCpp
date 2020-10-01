@@ -1,3 +1,3 @@
 from .exceptions import *
 
-from .type_map import get_type, UnknownTypeError, OPERATORS
+from .data_map import get_type, UnknownTypeError, OPERATORS
