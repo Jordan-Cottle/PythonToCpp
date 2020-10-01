@@ -6,7 +6,14 @@ import sys
 from ast import Attribute, Call, Constant, Expr, FunctionDef, If, Name
 from collections import defaultdict
 
-from compiler import CompileError, get_operator, get_type
+from compiler import (
+    CompileError,
+    UnknownTypeError,
+    get_exception_type,
+    get_operator,
+    get_type,
+    TYPES,
+)
 
 SPACES_PER_TAB = 4
 
@@ -283,6 +290,9 @@ class Converter(ast.NodeVisitor):
                 self.convert_print(node)
                 return
 
+            if func.id in TYPES:
+                func.id = self.get_type(func.id)
+
         print(f"Handling function call: {func}")
 
         self.visit(func)
@@ -503,6 +513,48 @@ class Converter(ast.NodeVisitor):
 
         self.end_line("};")
         self.current_class = ""
+
+    def visit_Try(self, node):
+
+        if node.orelse:
+            raise CompileError("C++ does not support else statements on try blocks")
+
+        if node.finalbody:
+            raise CompileError("C++ does not support finally statements on try blocks")
+
+        self.end_line("try {")
+
+        self.handle_body(node.body)
+        self.end_line("}")
+
+        for handler in node.handlers:
+            self.visit_Handler(handler)
+
+    def visit_Handler(self, node):
+
+        type_ = node.type
+        name = node.name
+        print(f"Hanlind exception handler {type_.id} {name}")
+
+        try:
+            cpp_type = get_exception_type(type_.id)
+        except UnknownTypeError:
+            cpp_type = self.get_type(type_.id)
+
+        self.end_line(f"catch ({cpp_type}& {name}){{")
+        self.handle_body(node.body)
+        self.end_line("}")
+
+    def visit_Raise(self, node):
+
+        self += "throw"
+        exc = node.exc
+
+        if exc is not None:
+            self += " "
+            self.visit(exc)
+
+        self.end_line()
 
     def __iadd__(self, value):
         indent = " " * (SPACES_PER_TAB * self.indent * self.line_start)

@@ -53,6 +53,13 @@ OPERATORS = {
     GtE: ">=",
 }
 
+EXCEPTIONS = {
+    "Exception": "std::exception",
+    "IndexError": "std:out_of_range",
+    "ValueError": "std:invalid_argument",
+    "RuntimeError": "std::runtime_error",
+}
+
 TYPES = {
     "str": "std::string",
     "int": "int",
@@ -60,7 +67,9 @@ TYPES = {
     "List": "std::vector",
     "list": "std::vector",
     "None": "void",
+    **EXCEPTIONS,
 }
+
 
 INCLUDES = {
     "std::string": "<string>",
@@ -98,3 +107,11 @@ def get_operator(op_node):
         raise UnknownOperatorError(
             f"{op_node.op} is an unsupported binary operator"
         ) from None
+
+
+def get_exception_type(name):
+
+    try:
+        return EXCEPTIONS[name]
+    except KeyError:
+        raise UnknownTypeError(f"{name} not recognized as a c++ exception")
