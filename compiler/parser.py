@@ -284,6 +284,15 @@ class Converter(ast.NodeVisitor):
         self.visit(node.value)
         self.end_line()
 
+    def handle_body(self, body):
+        with CompileFlag(self, "indent"):
+            for node in body:
+                if isinstance(node, FunctionDef):
+                    if node.name == "__init__":
+                        node.name = name
+
+                self.visit(node)
+
     def visit_FunctionDef(self, node):
         """ Handle parsing functions. """
 
@@ -307,11 +316,7 @@ class Converter(ast.NodeVisitor):
         self.visit(args)
 
         self.end_line(") {")
-
-        with CompileFlag(self, "indent"):
-            for sub_node in body:
-                self.visit(sub_node)
-
+        self.handle_body(body)
         self.end_line("}")
 
     def visit_arguments(self, node):
@@ -406,9 +411,7 @@ class Converter(ast.NodeVisitor):
 
         self.end_line(") {")
 
-        with CompileFlag(self, "indent"):
-            for sub_node in body:
-                self.visit(sub_node)
+        self.handle_body(body)
 
         if len(orelse) > 1:
             raise CompileError("More than one elif node, unknown action")
@@ -441,15 +444,7 @@ class Converter(ast.NodeVisitor):
 
         self.end_line(f"struct {name}{extends} {{")
 
-        with CompileFlag(self, "indent"):
-            for node in body:
-                print(node)
-
-                if isinstance(node, FunctionDef):
-                    if node.name == "__init__":
-                        node.name = name
-
-                self.visit(node)
+        self.handle_body(body)
 
         self.end_line("};")
         self.current_class = ""
