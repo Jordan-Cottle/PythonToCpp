@@ -418,17 +418,20 @@ class Converter(ast.NodeVisitor):
 
             last_operand = operand
 
+    def handle_test(self, test):
+        self += "("
+        self.visit(test)
+        self.end_line(")")
+
     def visit_If(self, node):
         test = node.test
 
         body = node.body
         orelse = node.orelse
 
-        self += "if ("
-
-        self.visit(test)
-
-        self.end_line(") {")
+        self += "if "
+        self.handle_test(test)
+        self.end_line("{")
 
         self.handle_body(body)
 
@@ -458,7 +461,7 @@ class Converter(ast.NodeVisitor):
             raise CompileError("C++ does not support multiple targets in a loop")
 
         if node.orelse:
-            raise CompileError("C++ does not support else statements on for loops")
+            raise CompileError("C++ does not support else statements on loops")
 
         iterable = node.iter
 
@@ -468,6 +471,18 @@ class Converter(ast.NodeVisitor):
         self.visit(iterable)
 
         self.end_line(") {")
+        self.handle_body(node.body)
+        self.end_line("}")
+
+    def visit_While(self, node):
+
+        if node.orelse:
+            raise CompileError("C++ does not support else statements on for loops")
+
+        self += "while "
+        self.handle_test(node.test)
+        self.end_line("{")
+
         self.handle_body(node.body)
         self.end_line("}")
 

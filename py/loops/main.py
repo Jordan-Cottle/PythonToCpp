@@ -4,3 +4,12 @@ def main() -> int:
 
     for item in items:
         print(item)
+
+    i = 0
+
+    while i < 10:
+        print(i)
+
+        i += 1
+
+    return 0
