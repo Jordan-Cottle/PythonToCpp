@@ -3,7 +3,7 @@
 import ast
 import os
 import sys
-from ast import Attribute, Call, Constant, Expr, FunctionDef, Name
+from ast import Attribute, Call, Constant, Expr, FunctionDef, If, Name
 from collections import defaultdict
 
 from compiler import CompileError, get_operator, get_type
@@ -391,6 +391,40 @@ class Converter(ast.NodeVisitor):
             self.visit(operand)
 
             last_operand = operand
+
+    def visit_If(self, node):
+        test = node.test
+
+        body = node.body
+        orelse = node.orelse
+
+        self += "if ("
+
+        self.visit(test)
+
+        self.end_line(") {")
+
+        with CompileFlag(self, "indent"):
+            for sub_node in body:
+                self.visit(sub_node)
+
+        if len(orelse) > 1:
+            raise CompileError("More than one elif node, unknown action")
+
+        if orelse:
+            else_node = orelse[0]
+            if isinstance(else_node, If):
+                self += "}else "
+                self.visit_If(else_node)
+            else:
+                self.end_line("}else {")
+
+                with CompileFlag(self, "indent"):
+                    self.visit(else_node)
+
+                self.end_line("}")
+        else:
+            self.end_line("}")
 
     def visit_ClassDef(self, node):
         name = node.name
