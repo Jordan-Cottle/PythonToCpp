@@ -8,6 +8,8 @@ from collections import defaultdict
 
 from compiler import CompileError, get_operator, get_type
 
+SPACES_PER_TAB = 4
+
 
 class FunctionTypeError(CompileError):
     """ Functions must have their return types annotated. """
@@ -453,7 +455,7 @@ class Converter(ast.NodeVisitor):
         self.current_class = ""
 
     def __iadd__(self, value):
-        indent = "\t" * (self.indent * self.line_start)
+        indent = " " * (SPACES_PER_TAB * self.indent * self.line_start)
 
         self.line_start = False
 
