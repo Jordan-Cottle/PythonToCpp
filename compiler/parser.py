@@ -159,6 +159,25 @@ class Converter(ast.NodeVisitor):
         else:
             self += value
 
+    def visit_List(self, node):
+        """ Handle List literals. """
+
+        elements = node.elts
+
+        self.end_line("{")
+        with CompileFlag(self, "indent"):
+            for i, element in enumerate(elements):
+                self.visit(element)
+                if i + 1 < len(elements):
+                    self.end_line(",")
+                else:
+                    self.end_line("")
+
+        self += "}"
+
+    def visit_Tuple(self, node):
+        self.visit_List(node)
+
     def visit_Name(self, node):
         """ Handle variable names in the source. """
 
@@ -430,6 +449,27 @@ class Converter(ast.NodeVisitor):
                 self.end_line("}")
         else:
             self.end_line("}")
+
+    def visit_For(self, node):
+
+        target = node.target
+
+        if not isinstance(target, Name):
+            raise CompileError("C++ does not support multiple targets in a loop")
+
+        if node.orelse:
+            raise CompileError("C++ does not support else statements on for loops")
+
+        iterable = node.iter
+
+        self += "for (auto& "
+        self.visit(target)
+        self += " : "
+        self.visit(iterable)
+
+        self.end_line(") {")
+        self.handle_body(node.body)
+        self.end_line("}")
 
     def visit_ClassDef(self, node):
         name = node.name

@@ -58,6 +58,7 @@ TYPES = {
     "int": "int",
     "float": "double",
     "List": "std::vector",
+    "list": "std::vector",
     "None": "void",
 }
 
