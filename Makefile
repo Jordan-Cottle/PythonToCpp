@@ -33,6 +33,6 @@ ${PROJECT}:
 	mkdir -p ${OBJ_PROJECT_DIR}
 
 clean:
-	rm -r ${CPP_DIR}
-	rm -r ${OBJ_DIR}
-	rm ./main
+	rm -rf ${CPP_DIR}
+	rm -rf ${OBJ_DIR}
+	rm -f ./main
