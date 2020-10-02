@@ -67,6 +67,7 @@ TYPES = {
     "List": "std::vector",
     "list": "std::vector",
     "None": "void",
+    "bool": "bool",
     **EXCEPTIONS,
 }
 

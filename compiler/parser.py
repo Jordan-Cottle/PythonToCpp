@@ -3,16 +3,16 @@
 import ast
 import os
 import sys
-from ast import Attribute, Call, Constant, Expr, FunctionDef, If, Name
+from ast import Attribute, Call, Constant, Expr, FunctionDef, If, Name, Subscript, List
 from collections import defaultdict
 
 from compiler import (
+    TYPES,
     CompileError,
     UnknownTypeError,
     get_exception_type,
     get_operator,
     get_type,
-    TYPES,
 )
 
 SPACES_PER_TAB = 4
@@ -68,6 +68,7 @@ class Converter(ast.NodeVisitor):
         self.path = os.path.abspath(file_path)
         self.line_no = 0
 
+        self.objects = {}
         self.current_class = ""
         self.code = []
         self.includes = set()
@@ -128,7 +129,7 @@ class Converter(ast.NodeVisitor):
             self += " << "
             print(f"Print conversion visiting: {arg}")
 
-            if isinstance(arg, Name) or isinstance(arg, Constant):
+            if isinstance(arg, (Name, Constant, Subscript)):
                 self.visit(arg)
             else:
                 self += "("
@@ -166,11 +167,7 @@ class Converter(ast.NodeVisitor):
         else:
             self += value
 
-    def visit_List(self, node):
-        """ Handle List literals. """
-
-        elements = node.elts
-
+    def handle_initialization_list(self, elements):
         self.end_line("{")
         with CompileFlag(self, "indent"):
             for i, element in enumerate(elements):
@@ -182,8 +179,22 @@ class Converter(ast.NodeVisitor):
 
         self += "}"
 
+    def visit_List(self, node):
+        """ Handle List literals. """
+
+        elements = node.elts
+
+        container_type = self.get_type("list")
+        element_type = self.get_type(type(elements[0].value).__name__)
+
+        self += f"new {container_type}<{element_type}> "
+        self.handle_initialization_list(elements)
+
     def visit_Tuple(self, node):
-        self.visit_List(node)
+        elements = node.elts
+        element_type = self.get_type(type(elements[0].value).__name__)
+        self += f"new {element_type}[{len(elements)}] "
+        self.handle_initialization_list(elements)
 
     def visit_Name(self, node):
         """ Handle variable names in the source. """
@@ -216,13 +227,15 @@ class Converter(ast.NodeVisitor):
 
         print(type(target))
         # Parse Attribute/Name before assignment operator
-        if isinstance(target, Attribute):
-            self.visit(target)
-        else:
+        if isinstance(target, Name):
             if target.id not in self.delcared:
                 self += "auto "
                 self.delcared.add(target.id)
+                if isinstance(value, List):
+                    self.objects[target.id] = self.get_type(type(value).__name__)
             self.visit_Name(target)
+        else:
+            self.visit(target)
 
         self.assign(value)
 
@@ -263,17 +276,45 @@ class Converter(ast.NodeVisitor):
         value = node.value
         attr = node.attr
 
+        accessor = "."
+
         if isinstance(value, Name):
             name = value.id
+
+        # TODO: Handle more generically
+        if attr == "append":
+            accessor = "->"
+            attr = "push_back"
 
         print(f"Processing attribute: {name}.{attr}")
 
         if name == "self":
-            self += "this->"
+            self += "this"
         else:
-            self += f"{name}."
+            self += f"{name}"
+
+        self += accessor
 
         self += f"{attr}"
+
+    def visit_Subscript(self, node):
+        value = node.value
+        slice_ = node.slice
+
+        self.visit(value)
+
+        # TODO: Handle more generically
+        if self.objects.get(value.id) == "std::vector":
+            self += f"->at("
+            self.visit(slice_.value)
+            self += ")"
+        else:
+            self.visit(slice_)
+
+    def visit_Index(self, node):
+        self += "["
+        self.visit(node.value)
+        self += "]"
 
     def visit_Call(self, node):
         """ Handle function calls. """
