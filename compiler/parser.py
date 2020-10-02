@@ -496,6 +496,12 @@ class Converter(ast.NodeVisitor):
         self.handle_body(node.body)
         self.end_line("}")
 
+    def visit_Break(self, node):
+        self.end_line("break;")
+
+    def visit_Continue(self, node):
+        self.end_line("continue;")
+
     def visit_ClassDef(self, node):
         name = node.name
         bases = node.bases
